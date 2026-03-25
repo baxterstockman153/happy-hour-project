@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.js.map
+*.d.ts
+!eslint.config.mjs
+.sst/
+.aws-sam/
+cdk.out/
