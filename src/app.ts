@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import authRouter from './routes/auth';
 
 dotenv.config();
 
@@ -12,8 +13,8 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Routes will be mounted here by each feature module:
-// app.use('/auth', authRouter);
+// Routes
+app.use('/auth', authRouter);
 // app.use('/deals', dealsRouter);
 // app.use('/venues', venuesRouter);
 // app.use('/users/me/favorites', favoritesRouter);
