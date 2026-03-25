@@ -6,6 +6,7 @@ import venuesRouter from './routes/venues';
 import favoritesRouter from './routes/favorites';
 import adminRouter from './routes/admin';
 import imageRouter from './routes/images';
+import searchRouter from './routes/search';
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ app.use('/venues', venuesRouter);
 app.use('/users/me/favorites', favoritesRouter);
 app.use('/admin', adminRouter);
 app.use('/admin', imageRouter);
+app.use('/search', searchRouter);
 
 // 404 handler
 app.use((_req, res) => {
