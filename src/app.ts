@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import authRouter from './routes/auth';
+import adminRouter from './routes/admin';
 
 dotenv.config();
 
@@ -18,7 +19,7 @@ app.use('/auth', authRouter);
 // app.use('/deals', dealsRouter);
 // app.use('/venues', venuesRouter);
 // app.use('/users/me/favorites', favoritesRouter);
-// app.use('/admin', adminRouter);
+app.use('/admin', adminRouter);
 
 // 404 handler
 app.use((_req, res) => {
