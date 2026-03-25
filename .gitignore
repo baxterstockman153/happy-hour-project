@@ -7,3 +7,4 @@ dist/
 .sst/
 .aws-sam/
 cdk.out/
+.claude/worktrees/
