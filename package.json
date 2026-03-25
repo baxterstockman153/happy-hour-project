@@ -22,7 +22,10 @@
   },
   "homepage": "https://github.com/baxterstockman153/happy-hour-project#readme",
   "dependencies": {
+    "@vendia/serverless-express": "^4.12.6",
+    "aws-cdk-lib": "^2.244.0",
     "bcrypt": "^6.0.0",
+    "constructs": "^10.6.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
@@ -31,6 +34,7 @@
     "uuid": "^13.0.0"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.161",
     "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
