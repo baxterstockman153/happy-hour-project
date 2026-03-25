@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/baxterstockman153/happy-hour-project#readme",
   "dependencies": {
+    "@aws-sdk/client-sns": "^3.1016.0",
     "@vendia/serverless-express": "^4.12.6",
     "aws-cdk-lib": "^2.244.0",
     "bcrypt": "^6.0.0",
