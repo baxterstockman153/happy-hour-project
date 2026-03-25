@@ -1,0 +1,42 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Build & Deploy to AWS
+    runs-on: ubuntu-latest
+    environment: production
+
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Install AWS CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: CDK synth
+        run: npx cdk synth --app 'npx ts-node infra/bin/app.ts'
+
+      - name: CDK deploy
+        run: npx cdk deploy --app 'npx ts-node infra/bin/app.ts' --require-approval never

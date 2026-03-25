@@ -8,7 +8,12 @@
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "lint": "eslint src/",
-    "test": "jest"
+    "test": "jest",
+    "deploy": "npx cdk deploy --app 'npx ts-node infra/bin/app.ts' --require-approval never",
+    "synth": "npx cdk synth --app 'npx ts-node infra/bin/app.ts'",
+    "db:migrate": "tsx src/db/migrate.ts up",
+    "db:rollback": "tsx src/db/migrate.ts down",
+    "db:seed": "tsx src/db/seed.ts"
   },
   "repository": {
     "type": "git",
