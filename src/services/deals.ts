@@ -53,6 +53,7 @@ interface DealVenueRow {
   v_updated_at: Date;
   // computed
   distance_miles: number;
+  is_favorited?: boolean;
 }
 
 function rowToDealWithVenue(row: DealVenueRow): DealWithVenue {
@@ -83,12 +84,14 @@ function rowToDealWithVenue(row: DealVenueRow): DealWithVenue {
       created_at: row.v_created_at,
       updated_at: row.v_updated_at,
       distance_miles: parseFloat(String(row.distance_miles)),
+      ...(row.is_favorited !== undefined && { is_favorited: row.is_favorited }),
     },
   };
 }
 
 export async function getNearbyDeals(
-  params: NearbyQuery
+  params: NearbyQuery,
+  userId?: string
 ): Promise<PaginatedResponse<DealWithVenue>> {
   const {
     lat,
@@ -110,6 +113,15 @@ export async function getNearbyDeals(
     `$4 = ANY(d.day_of_week)`,
     `d.start_time <= $5::time AND d.end_time >= $5::time`,
     `d.is_active = true`,
+    `(
+      NOT EXISTS (SELECT 1 FROM venue_ownership vo WHERE vo.venue_id = d.venue_id)
+      OR EXISTS (
+        SELECT 1 FROM venue_ownership vo
+        JOIN venue_owners o ON o.id = vo.venue_owner_id
+        WHERE vo.venue_id = d.venue_id
+          AND o.is_verified = TRUE AND o.is_suspended = FALSE
+      )
+    )`,
   ];
   const queryParams: unknown[] = [lng, lat, radiusMeters, day, time];
 
@@ -131,8 +143,19 @@ export async function getNearbyDeals(
   const total = parseInt(countResult.rows[0].total, 10);
 
   // Data query
-  const limitParamIdx = queryParams.length + 1;
-  const offsetParamIdx = queryParams.length + 2;
+  const dataParams = [...queryParams];
+
+  let favoritedSelect = '';
+  let favoritedJoin = '';
+  if (userId) {
+    dataParams.push(userId);
+    const userParamIdx = dataParams.length;
+    favoritedSelect = `,\n      CASE WHEN uf.user_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_favorited`;
+    favoritedJoin = `\n    LEFT JOIN user_favorites uf ON uf.venue_id = v.id AND uf.user_id = $${userParamIdx}`;
+  }
+
+  const limitParamIdx = dataParams.length + 1;
+  const offsetParamIdx = dataParams.length + 2;
 
   const dataSql = `
     SELECT
@@ -144,16 +167,16 @@ export async function getNearbyDeals(
       ST_X(v.location::geometry) AS v_longitude,
       v.phone AS v_phone, v.website AS v_website, v.image_url AS v_image_url,
       v.category AS v_category, v.created_at AS v_created_at, v.updated_at AS v_updated_at,
-      ST_Distance(v.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1609.34 AS distance_miles
+      ST_Distance(v.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1609.34 AS distance_miles${favoritedSelect}
     FROM happy_hour_deals d
-    JOIN venues v ON d.venue_id = v.id
+    JOIN venues v ON d.venue_id = v.id${favoritedJoin}
     WHERE ${whereClause}
     ORDER BY distance_miles
     LIMIT $${limitParamIdx} OFFSET $${offsetParamIdx}
   `;
 
   const dataResult = await query<DealVenueRow>(dataSql, [
-    ...queryParams,
+    ...dataParams,
     limit,
     offset,
   ]);
@@ -169,11 +192,23 @@ export async function getNearbyDeals(
 export async function getHappeningNow(
   lat: number,
   lng: number,
-  radius: number = DEFAULT_RADIUS_MILES
+  radius: number = DEFAULT_RADIUS_MILES,
+  userId?: string
 ): Promise<DealWithVenue[]> {
   const radiusMeters = radius * MILES_TO_METERS;
   const day = getCurrentDay();
   const time = getCurrentTime();
+
+  const queryParams: unknown[] = [lng, lat, radiusMeters, day, time];
+
+  let favoritedSelect = '';
+  let favoritedJoin = '';
+  if (userId) {
+    queryParams.push(userId);
+    const userParamIdx = queryParams.length;
+    favoritedSelect = `,\n      CASE WHEN uf.user_id IS NOT NULL THEN TRUE ELSE FALSE END AS is_favorited`;
+    favoritedJoin = `\n    LEFT JOIN user_favorites uf ON uf.venue_id = v.id AND uf.user_id = $${userParamIdx}`;
+  }
 
   const sql = `
     SELECT
@@ -185,17 +220,26 @@ export async function getHappeningNow(
       ST_X(v.location::geometry) AS v_longitude,
       v.phone AS v_phone, v.website AS v_website, v.image_url AS v_image_url,
       v.category AS v_category, v.created_at AS v_created_at, v.updated_at AS v_updated_at,
-      ST_Distance(v.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1609.34 AS distance_miles
+      ST_Distance(v.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography) / 1609.34 AS distance_miles${favoritedSelect}
     FROM happy_hour_deals d
-    JOIN venues v ON d.venue_id = v.id
+    JOIN venues v ON d.venue_id = v.id${favoritedJoin}
     WHERE ST_DWithin(v.location, ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography, $3)
       AND $4 = ANY(d.day_of_week)
       AND d.start_time <= $5::time AND d.end_time >= $5::time
       AND d.is_active = true
+      AND (
+        NOT EXISTS (SELECT 1 FROM venue_ownership vo WHERE vo.venue_id = d.venue_id)
+        OR EXISTS (
+          SELECT 1 FROM venue_ownership vo
+          JOIN venue_owners o ON o.id = vo.venue_owner_id
+          WHERE vo.venue_id = d.venue_id
+            AND o.is_verified = TRUE AND o.is_suspended = FALSE
+        )
+      )
     ORDER BY distance_miles
   `;
 
-  const result = await query<DealVenueRow>(sql, [lng, lat, radiusMeters, day, time]);
+  const result = await query<DealVenueRow>(sql, queryParams);
   return result.rows.map(rowToDealWithVenue);
 }
 
@@ -205,6 +249,15 @@ export async function getDealsByVenue(venueId: string): Promise<HappyHourDeal[]>
            description, deal_type, is_active, created_at, updated_at
     FROM happy_hour_deals
     WHERE venue_id = $1 AND is_active = true
+      AND (
+        NOT EXISTS (SELECT 1 FROM venue_ownership vo WHERE vo.venue_id = $1)
+        OR EXISTS (
+          SELECT 1 FROM venue_ownership vo
+          JOIN venue_owners o ON o.id = vo.venue_owner_id
+          WHERE vo.venue_id = $1
+            AND o.is_verified = TRUE AND o.is_suspended = FALSE
+        )
+      )
     ORDER BY day_of_week, start_time
   `;
 

@@ -1,17 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { adminAuth } from '../middleware/adminAuth';
+import { ownerAuth, requireVenueOwnership } from '../middleware/ownerAuth';
 import {
-  loginAdmin,
-  createVenue,
-  updateVenue,
-  deleteVenue,
-  createDeal,
-  updateDeal,
-  deleteDeal,
-  listVenueOwners,
-  verifyVenueOwner,
-  suspendVenueOwner,
-} from '../services/admin';
+  registerOwner,
+  loginOwner,
+  getOwnerVenues,
+  createOwnerVenue,
+  updateOwnerVenue,
+  createOwnerDeal,
+  updateOwnerDeal,
+  deleteOwnerDeal,
+} from '../services/owners';
+import { generateUploadUrl, getImageUrl } from '../services/images';
 import { VenueCategory, DealType } from '../types';
 
 const router = Router();
@@ -144,8 +143,82 @@ function validateDealInput(body: Record<string, unknown>, isUpdate: boolean): st
 // ── Auth Routes ──
 
 /**
- * POST /admin/login
- * Authenticate an admin user and return tokens with role claim.
+ * POST /owners/register
+ * Register a new venue owner account.
+ */
+router.post('/register', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email, password, business_name, contact_name, phone } = req.body;
+
+    if (!email || !password || !business_name || !contact_name) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'email, password, business_name, and contact_name are required',
+        statusCode: 400,
+      });
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'Invalid email format',
+        statusCode: 400,
+      });
+      return;
+    }
+
+    if (typeof password !== 'string' || password.length < 8) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'Password must be at least 8 characters',
+        statusCode: 400,
+      });
+      return;
+    }
+
+    if (typeof business_name !== 'string' || business_name.trim() === '') {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'business_name must be a non-empty string',
+        statusCode: 400,
+      });
+      return;
+    }
+
+    if (typeof contact_name !== 'string' || contact_name.trim() === '') {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'contact_name must be a non-empty string',
+        statusCode: 400,
+      });
+      return;
+    }
+
+    const result = await registerOwner({ email, password, business_name, contact_name, phone });
+
+    res.status(201).json(result);
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('already in use')) {
+      res.status(409).json({
+        error: 'Conflict',
+        message: err.message,
+        statusCode: 409,
+      });
+      return;
+    }
+    console.error('Owner registration error:', err);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to register',
+      statusCode: 500,
+    });
+  }
+});
+
+/**
+ * POST /owners/login
+ * Authenticate a venue owner and return tokens.
  */
 router.post('/login', async (req: Request, res: Response): Promise<void> => {
   try {
@@ -169,20 +242,28 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const tokens = await loginAdmin(email, password);
-
-    if (!tokens) {
-      res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid email or password',
-        statusCode: 401,
-      });
-      return;
-    }
-
-    res.status(200).json(tokens);
+    const result = await loginOwner(email, password);
+    res.status(200).json(result);
   } catch (err) {
-    console.error('Admin login error:', err);
+    if (err instanceof Error) {
+      if (err.message === 'Invalid email or password') {
+        res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Invalid email or password',
+          statusCode: 401,
+        });
+        return;
+      }
+      if (err.message === 'Account is suspended') {
+        res.status(403).json({
+          error: 'Forbidden',
+          message: 'Account is suspended',
+          statusCode: 403,
+        });
+        return;
+      }
+    }
+    console.error('Owner login error:', err);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to log in',
@@ -191,13 +272,33 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
   }
 });
 
-// ── Venue Routes (require admin auth) ──
+// ── Venue Routes (require owner auth) ──
 
 /**
- * POST /admin/venues
- * Create a new venue.
+ * GET /owners/me/venues
+ * List all venues owned by the authenticated owner.
  */
-router.post('/venues', adminAuth, async (req: Request, res: Response): Promise<void> => {
+router.get('/me/venues', ownerAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const ownerId = req.user!.sub;
+    const venues = await getOwnerVenues(ownerId);
+
+    res.status(200).json(venues);
+  } catch (err) {
+    console.error('Get owner venues error:', err);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to retrieve venues',
+      statusCode: 500,
+    });
+  }
+});
+
+/**
+ * POST /owners/me/venues
+ * Create a new venue for the authenticated owner.
+ */
+router.post('/me/venues', ownerAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const validationError = validateVenueInput(req.body, false);
     if (validationError) {
@@ -209,7 +310,8 @@ router.post('/venues', adminAuth, async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const venue = await createVenue({
+    const ownerId = req.user!.sub;
+    const venue = await createOwnerVenue(ownerId, {
       name: req.body.name,
       address: req.body.address,
       city: req.body.city,
@@ -225,7 +327,7 @@ router.post('/venues', adminAuth, async (req: Request, res: Response): Promise<v
 
     res.status(201).json(venue);
   } catch (err) {
-    console.error('Create venue error:', err);
+    console.error('Create owner venue error:', err);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create venue',
@@ -235,10 +337,10 @@ router.post('/venues', adminAuth, async (req: Request, res: Response): Promise<v
 });
 
 /**
- * PUT /admin/venues/:id
- * Update an existing venue.
+ * PUT /owners/me/venues/:id
+ * Update a venue owned by the authenticated owner.
  */
-router.put('/venues/:id', adminAuth, async (req: Request, res: Response): Promise<void> => {
+router.put('/me/venues/:id', ownerAuth, requireVenueOwnership, async (req: Request, res: Response): Promise<void> => {
   try {
     const validationError = validateVenueInput(req.body, true);
     if (validationError) {
@@ -265,7 +367,8 @@ router.put('/venues/:id', adminAuth, async (req: Request, res: Response): Promis
     }
 
     const venueId = req.params.id as string;
-    const venue = await updateVenue(venueId, input);
+    const ownerId = req.user!.sub;
+    const venue = await updateOwnerVenue(ownerId, venueId, input);
 
     if (!venue) {
       res.status(404).json({
@@ -278,7 +381,7 @@ router.put('/venues/:id', adminAuth, async (req: Request, res: Response): Promis
 
     res.status(200).json(venue);
   } catch (err) {
-    console.error('Update venue error:', err);
+    console.error('Update owner venue error:', err);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update venue',
@@ -287,42 +390,13 @@ router.put('/venues/:id', adminAuth, async (req: Request, res: Response): Promis
   }
 });
 
-/**
- * DELETE /admin/venues/:id
- * Delete a venue and its cascaded deals.
- */
-router.delete('/venues/:id', adminAuth, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const venueId = req.params.id as string;
-    const deleted = await deleteVenue(venueId);
-
-    if (!deleted) {
-      res.status(404).json({
-        error: 'Not Found',
-        message: 'Venue not found',
-        statusCode: 404,
-      });
-      return;
-    }
-
-    res.status(204).send();
-  } catch (err) {
-    console.error('Delete venue error:', err);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to delete venue',
-      statusCode: 500,
-    });
-  }
-});
-
-// ── Deal Routes (require admin auth) ──
+// ── Deal Routes (require owner auth) ──
 
 /**
- * POST /admin/venues/:id/deals
- * Create a deal for a specific venue.
+ * POST /owners/me/venues/:id/deals
+ * Create a deal for a venue owned by the authenticated owner.
  */
-router.post('/venues/:id/deals', adminAuth, async (req: Request, res: Response): Promise<void> => {
+router.post('/me/venues/:id/deals', ownerAuth, requireVenueOwnership, async (req: Request, res: Response): Promise<void> => {
   try {
     const validationError = validateDealInput(req.body, false);
     if (validationError) {
@@ -335,7 +409,8 @@ router.post('/venues/:id/deals', adminAuth, async (req: Request, res: Response):
     }
 
     const venueId = req.params.id as string;
-    const deal = await createDeal(venueId, {
+    const ownerId = req.user!.sub;
+    const deal = await createOwnerDeal(ownerId, venueId, {
       day_of_week: req.body.day_of_week,
       start_time: req.body.start_time,
       end_time: req.body.end_time,
@@ -355,7 +430,7 @@ router.post('/venues/:id/deals', adminAuth, async (req: Request, res: Response):
 
     res.status(201).json(deal);
   } catch (err) {
-    console.error('Create deal error:', err);
+    console.error('Create owner deal error:', err);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to create deal',
@@ -365,10 +440,10 @@ router.post('/venues/:id/deals', adminAuth, async (req: Request, res: Response):
 });
 
 /**
- * PUT /admin/deals/:id
- * Update an existing deal.
+ * PUT /owners/me/deals/:id
+ * Update an existing deal (ownership checked in service).
  */
-router.put('/deals/:id', adminAuth, async (req: Request, res: Response): Promise<void> => {
+router.put('/me/deals/:id', ownerAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const validationError = validateDealInput(req.body, true);
     if (validationError) {
@@ -389,7 +464,8 @@ router.put('/deals/:id', adminAuth, async (req: Request, res: Response): Promise
     }
 
     const dealId = req.params.id as string;
-    const deal = await updateDeal(dealId, input);
+    const ownerId = req.user!.sub;
+    const deal = await updateOwnerDeal(ownerId, dealId, input);
 
     if (!deal) {
       res.status(404).json({
@@ -402,7 +478,7 @@ router.put('/deals/:id', adminAuth, async (req: Request, res: Response): Promise
 
     res.status(200).json(deal);
   } catch (err) {
-    console.error('Update deal error:', err);
+    console.error('Update owner deal error:', err);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to update deal',
@@ -412,13 +488,14 @@ router.put('/deals/:id', adminAuth, async (req: Request, res: Response): Promise
 });
 
 /**
- * DELETE /admin/deals/:id
- * Delete a deal.
+ * DELETE /owners/me/deals/:id
+ * Delete a deal (ownership checked in service).
  */
-router.delete('/deals/:id', adminAuth, async (req: Request, res: Response): Promise<void> => {
+router.delete('/me/deals/:id', ownerAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const dealId = req.params.id as string;
-    const deleted = await deleteDeal(dealId);
+    const ownerId = req.user!.sub;
+    const deleted = await deleteOwnerDeal(ownerId, dealId);
 
     if (!deleted) {
       res.status(404).json({
@@ -431,7 +508,7 @@ router.delete('/deals/:id', adminAuth, async (req: Request, res: Response): Prom
 
     res.status(204).send();
   } catch (err) {
-    console.error('Delete deal error:', err);
+    console.error('Delete owner deal error:', err);
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete deal',
@@ -440,80 +517,52 @@ router.delete('/deals/:id', adminAuth, async (req: Request, res: Response): Prom
   }
 });
 
-// ── Venue Owner Management Routes (require admin auth) ──
+// ── Image Routes ──
 
 /**
- * GET /admin/owners
- * List venue owners with optional status filter (?status=verified|unverified|suspended).
+ * POST /owners/me/venues/:id/images
+ * Generate a presigned S3 upload URL for a venue image.
  */
-router.get('/owners', adminAuth, async (req: Request, res: Response): Promise<void> => {
+router.post('/me/venues/:id/images', ownerAuth, requireVenueOwnership, async (req: Request, res: Response): Promise<void> => {
   try {
-    const status = req.query.status as string | undefined;
-    const owners = await listVenueOwners(status);
-    res.status(200).json(owners);
-  } catch (err) {
-    console.error('List venue owners error:', err);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to list venue owners',
-      statusCode: 500,
-    });
-  }
-});
+    const venueId = req.params.id as string;
+    const { content_type } = req.body;
 
-/**
- * PUT /admin/owners/:id/verify
- * Approve a venue owner (sets is_verified=true, is_suspended=false).
- */
-router.put('/owners/:id/verify', adminAuth, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const ownerId = req.params.id as string;
-    const owner = await verifyVenueOwner(ownerId);
-
-    if (!owner) {
-      res.status(404).json({
-        error: 'Not Found',
-        message: 'Venue owner not found',
-        statusCode: 404,
+    if (!content_type) {
+      res.status(400).json({
+        error: 'Bad Request',
+        message: 'content_type is required',
+        statusCode: 400,
       });
       return;
     }
 
-    res.status(200).json(owner);
-  } catch (err) {
-    console.error('Verify venue owner error:', err);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to verify venue owner',
-      statusCode: 500,
-    });
-  }
-});
-
-/**
- * PUT /admin/owners/:id/suspend
- * Suspend a venue owner (sets is_suspended=true).
- */
-router.put('/owners/:id/suspend', adminAuth, async (req: Request, res: Response): Promise<void> => {
-  try {
-    const ownerId = req.params.id as string;
-    const owner = await suspendVenueOwner(ownerId);
-
-    if (!owner) {
-      res.status(404).json({
-        error: 'Not Found',
-        message: 'Venue owner not found',
-        statusCode: 404,
-      });
-      return;
+    let result;
+    try {
+      result = await generateUploadUrl(venueId, content_type);
+    } catch (err) {
+      if (err instanceof Error && err.message.startsWith('Invalid content type')) {
+        res.status(400).json({
+          error: 'Bad Request',
+          message: err.message,
+          statusCode: 400,
+        });
+        return;
+      }
+      throw err;
     }
 
-    res.status(200).json(owner);
+    const imageUrl = getImageUrl(result.imageKey);
+
+    res.status(200).json({
+      upload_url: result.uploadUrl,
+      image_url: imageUrl,
+    });
   } catch (err) {
-    console.error('Suspend venue owner error:', err);
+    console.error('Generate upload URL error:', err);
     res.status(500).json({
       error: 'Internal Server Error',
-      message: 'Failed to suspend venue owner',
+      message: 'Failed to generate upload URL',
       statusCode: 500,
     });
   }

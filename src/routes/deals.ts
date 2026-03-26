@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { getNearbyDeals, getHappeningNow } from '../services/deals';
+import { optionalAuth } from '../middleware/auth';
 import { DealType } from '../types';
 
 const router = Router();
+router.use(optionalAuth);
 
 /**
  * GET /deals/nearby
@@ -142,7 +144,7 @@ router.get('/nearby', async (req: Request, res: Response) => {
       params.limit = l;
     }
 
-    const result = await getNearbyDeals(params);
+    const result = await getNearbyDeals(params, req.user?.sub);
     res.json(result);
   } catch (err) {
     console.error('Error in GET /deals/nearby:', err);
@@ -196,7 +198,7 @@ router.get('/happening-now', async (req: Request, res: Response) => {
       }
     }
 
-    const deals = await getHappeningNow(latNum, lngNum, radiusNum);
+    const deals = await getHappeningNow(latNum, lngNum, radiusNum, req.user?.sub);
     res.json({ data: deals });
   } catch (err) {
     console.error('Error in GET /deals/happening-now:', err);

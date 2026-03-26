@@ -54,6 +54,31 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
 }
 
 /**
+ * Optional auth middleware — extracts Bearer token if present and sets req.user.
+ * Never rejects — if the token is missing or invalid, continues as unauthenticated.
+ */
+export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    next();
+    return;
+  }
+
+  try {
+    const token = authHeader.slice(7);
+    const payload = verifyToken(token);
+    if (payload.type === 'access') {
+      req.user = payload;
+    }
+  } catch {
+    // Invalid token — continue as unauthenticated
+  }
+
+  next();
+}
+
+/**
  * requireAdmin middleware — must be used after authenticate.
  * Verifies the user's role is 'super_admin' or 'editor'.
  * Returns 403 on insufficient role.

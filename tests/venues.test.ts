@@ -1,6 +1,7 @@
 import request from 'supertest';
 import app from '../src/app';
 import { query } from '../src/db/connection';
+import { generateTokens } from '../src/services/auth';
 
 process.env.JWT_SECRET = 'test-jwt-secret-for-happy-hour';
 
@@ -74,5 +75,47 @@ describe('GET /venues/:id', () => {
 
     expect(res.status).toBe(404);
     expect(res.body.message).toMatch(/not found/i);
+  });
+
+  it('should not include is_favorited without auth', async () => {
+    mockQuery.mockResolvedValueOnce(makeResult([sampleVenue]));
+    mockQuery.mockResolvedValueOnce(makeResult([sampleDeal]));
+
+    const res = await request(app).get('/venues/venue-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).not.toHaveProperty('is_favorited');
+    // Verify SQL does not contain user_favorites
+    const venueSql = mockQuery.mock.calls[0][0] as string;
+    expect(venueSql).not.toContain('user_favorites');
+  });
+
+  it('should include is_favorited with valid Bearer token', async () => {
+    const tokens = generateTokens({ sub: 'user-1', email: 'user@example.com' });
+
+    mockQuery.mockResolvedValueOnce(makeResult([{ ...sampleVenue, is_favorited: true }]));
+    mockQuery.mockResolvedValueOnce(makeResult([sampleDeal]));
+
+    const res = await request(app)
+      .get('/venues/venue-1')
+      .set('Authorization', `Bearer ${tokens.access_token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.is_favorited).toBe(true);
+    // Verify SQL includes user_favorites
+    const venueSql = mockQuery.mock.calls[0][0] as string;
+    expect(venueSql).toContain('user_favorites');
+  });
+
+  it('should treat invalid token as unauthenticated (no 401)', async () => {
+    mockQuery.mockResolvedValueOnce(makeResult([sampleVenue]));
+    mockQuery.mockResolvedValueOnce(makeResult([sampleDeal]));
+
+    const res = await request(app)
+      .get('/venues/venue-1')
+      .set('Authorization', 'Bearer invalid-token');
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).not.toHaveProperty('is_favorited');
   });
 });

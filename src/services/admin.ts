@@ -8,6 +8,7 @@ import {
   UpdateVenueInput,
   CreateDealInput,
   UpdateDealInput,
+  VenueOwnerProfile,
 } from '../types';
 
 // ── Admin Auth ──
@@ -199,4 +200,52 @@ export async function updateDeal(id: string, input: UpdateDealInput): Promise<Ha
 export async function deleteDeal(id: string): Promise<boolean> {
   const result = await query('DELETE FROM happy_hour_deals WHERE id = $1', [id]);
   return (result.rowCount ?? 0) > 0;
+}
+
+// ── Venue Owners ──
+
+export async function listVenueOwners(status?: string): Promise<VenueOwnerProfile[]> {
+  let sql = `
+    SELECT id, email, business_name, contact_name, phone,
+           is_verified, is_suspended, created_at, updated_at
+    FROM venue_owners
+  `;
+  const params: unknown[] = [];
+
+  if (status === 'verified') {
+    sql += ' WHERE is_verified = TRUE AND is_suspended = FALSE';
+  } else if (status === 'unverified') {
+    sql += ' WHERE is_verified = FALSE';
+  } else if (status === 'suspended') {
+    sql += ' WHERE is_suspended = TRUE';
+  }
+
+  sql += ' ORDER BY created_at DESC';
+
+  const result = await query<VenueOwnerProfile>(sql, params);
+  return result.rows;
+}
+
+export async function verifyVenueOwner(ownerId: string): Promise<VenueOwnerProfile | null> {
+  const result = await query<VenueOwnerProfile>(
+    `UPDATE venue_owners
+     SET is_verified = TRUE, is_suspended = FALSE, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, email, business_name, contact_name, phone,
+               is_verified, is_suspended, created_at, updated_at`,
+    [ownerId]
+  );
+  return result.rows[0] || null;
+}
+
+export async function suspendVenueOwner(ownerId: string): Promise<VenueOwnerProfile | null> {
+  const result = await query<VenueOwnerProfile>(
+    `UPDATE venue_owners
+     SET is_suspended = TRUE, updated_at = NOW()
+     WHERE id = $1
+     RETURNING id, email, business_name, contact_name, phone,
+               is_verified, is_suspended, created_at, updated_at`,
+    [ownerId]
+  );
+  return result.rows[0] || null;
 }

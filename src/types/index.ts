@@ -21,6 +21,7 @@ export interface Venue {
 
 export interface VenueWithDistance extends Venue {
   distance_miles: number;
+  is_favorited?: boolean;
 }
 
 export interface CreateVenueInput {
@@ -93,6 +94,41 @@ export interface UserFavorite {
   user_id: string;
   venue_id: string;
   created_at: Date;
+}
+
+// ── Venue Owner ──
+
+export interface VenueOwner {
+  id: string;
+  email: string;
+  password_hash: string;
+  business_name: string;
+  contact_name: string;
+  phone: string | null;
+  is_verified: boolean;
+  is_suspended: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface VenueOwnerProfile {
+  id: string;
+  email: string;
+  business_name: string;
+  contact_name: string;
+  phone: string | null;
+  is_verified: boolean;
+  is_suspended: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateVenueOwnerInput {
+  email: string;
+  password: string;
+  business_name: string;
+  contact_name: string;
+  phone?: string;
 }
 
 // ── Auth ──

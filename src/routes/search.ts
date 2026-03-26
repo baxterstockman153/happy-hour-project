@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { searchVenues, getFilteredDeals, getDealsByDay } from '../services/search';
+import { optionalAuth } from '../middleware/auth';
 import { DealType, VenueCategory } from '../types';
 
 const router = Router();
+router.use(optionalAuth);
 
 const VALID_CATEGORIES: VenueCategory[] = [
   'bar', 'restaurant', 'brewery', 'lounge', 'pub', 'winery', 'other',
@@ -350,7 +352,7 @@ router.get('/deals', async (req: Request, res: Response) => {
       sort_by: sortByVal,
       page: pageNum,
       limit: limitNum,
-    });
+    }, req.user?.sub);
 
     res.json(result);
   } catch (err) {

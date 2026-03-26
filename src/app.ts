@@ -8,6 +8,7 @@ import adminRouter from './routes/admin';
 import imageRouter from './routes/images';
 import searchRouter from './routes/search';
 import notificationsRouter from './routes/notifications';
+import ownerRouter from './routes/owners';
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ app.use('/users/me/favorites', favoritesRouter);
 app.use('/admin', adminRouter);
 app.use('/admin', imageRouter);
 app.use('/search', searchRouter);
+app.use('/owners', ownerRouter);
 app.use('/notifications', notificationsRouter);
 
 // 404 handler

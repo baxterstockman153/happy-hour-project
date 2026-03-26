@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getVenueWithDeals } from '../services/venues';
+import { optionalAuth } from '../middleware/auth';
 
 const router = Router();
 
@@ -7,11 +8,11 @@ const router = Router();
  * GET /venues/:id
  * Returns a venue with all its active deals. 404 if not found.
  */
-router.get('/:id', async (req: Request<{ id: string }>, res: Response) => {
+router.get('/:id', optionalAuth, async (req: Request<{ id: string }>, res: Response) => {
   try {
     const { id } = req.params;
 
-    const venue = await getVenueWithDeals(id);
+    const venue = await getVenueWithDeals(id, req.user?.sub);
 
     if (!venue) {
       res.status(404).json({
