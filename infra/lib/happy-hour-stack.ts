@@ -133,6 +133,48 @@ export class HappyHourStack extends cdk.Stack {
     });
 
     // ---------------------------------------------------------------
+    // S3 Bucket — frontend static site
+    // ---------------------------------------------------------------
+    const frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+    });
+
+    // ---------------------------------------------------------------
+    // CloudFront Distribution — serves frontend static site via OAI
+    // ---------------------------------------------------------------
+    const frontendOai = new cloudfront.OriginAccessIdentity(this, 'FrontendOAI');
+    frontendBucket.grantRead(frontendOai);
+
+    const frontendDistribution = new cloudfront.CloudFrontWebDistribution(this, 'FrontendDistribution', {
+      originConfigs: [{
+        s3OriginSource: {
+          s3BucketSource: frontendBucket,
+          originAccessIdentity: frontendOai,
+        },
+        behaviors: [{
+          isDefaultBehavior: true,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        }],
+      }],
+      defaultRootObject: 'index.html',
+      errorConfigurations: [
+        {
+          errorCode: 404,
+          responseCode: 200,
+          responsePagePath: '/index.html',
+        },
+        {
+          errorCode: 403,
+          responseCode: 200,
+          responsePagePath: '/index.html',
+        },
+      ],
+    });
+
+    // ---------------------------------------------------------------
     // JWT Secret placeholder (stored in Secrets Manager)
     // ---------------------------------------------------------------
     const jwtSecret = new secretsmanager.Secret(this, 'JwtSecret', {
@@ -224,6 +266,14 @@ export class HappyHourStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'RdsProxyEndpoint', {
       value: rdsProxy.endpoint,
       description: 'RDS Proxy endpoint',
+    });
+
+    new cdk.CfnOutput(this, 'FrontendUrl', {
+      value: `https://${frontendDistribution.distributionDomainName}`,
+    });
+
+    new cdk.CfnOutput(this, 'FrontendBucketName', {
+      value: frontendBucket.bucketName,
     });
   }
 }

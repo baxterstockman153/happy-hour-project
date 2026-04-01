@@ -1,7 +1,7 @@
 import { Pool, QueryResult, QueryResultRow } from 'pg';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const pool = new Pool(
   process.env.DATABASE_URL
