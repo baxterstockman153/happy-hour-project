@@ -28,13 +28,17 @@
     "url": "https://github.com/baxterstockman153/happy-hour-project/issues"
   },
   "homepage": "https://github.com/baxterstockman153/happy-hour-project#readme",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1016.0",
+    "@aws-sdk/client-secrets-manager": "^3.1024.0",
     "@aws-sdk/client-sns": "^3.1016.0",
     "@aws-sdk/s3-request-presigner": "^3.1016.0",
     "@vendia/serverless-express": "^4.12.6",
     "aws-cdk-lib": "^2.244.0",
-    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
     "constructs": "^10.6.0",
     "cors": "^2.8.5",
     "dotenv": "^17.3.1",
@@ -46,7 +50,7 @@
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.161",
-    "@types/bcrypt": "^6.0.0",
+    "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
@@ -58,6 +62,7 @@
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
     "concurrently": "^9.1.2",
+    "esbuild": "^0.27.4",
     "jest": "^30.3.0",
     "supertest": "^7.2.2",
     "ts-jest": "^29.4.6",

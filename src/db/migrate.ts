@@ -2,7 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { pool, query, closePool } from './connection';
 
-const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
+// In the Lambda bundle, migrations are copied to /var/task/migrations (next to index.js).
+// Locally (tsx src/db/migrate.ts), __dirname is src/db so we fall back to that.
+const MIGRATIONS_DIR = fs.existsSync(path.join(__dirname, 'migrations'))
+  ? path.join(__dirname, 'migrations')
+  : path.join(__dirname, '..', '..', 'src', 'db', 'migrations');
 
 /**
  * Ensure the _migrations tracking table exists.
@@ -30,7 +34,7 @@ async function getAppliedMigrations(): Promise<Set<string>> {
 /**
  * Run all pending "up" migrations (files matching NNN_*.sql, excluding *_down.sql).
  */
-async function up(): Promise<void> {
+export async function up(): Promise<void> {
   await ensureMigrationsTable();
   const applied = await getAppliedMigrations();
 
@@ -79,7 +83,7 @@ async function up(): Promise<void> {
 /**
  * Roll back the last applied migration by running the corresponding *_down.sql file.
  */
-async function down(): Promise<void> {
+export async function down(): Promise<void> {
   await ensureMigrationsTable();
 
   const result = await query<{ filename: string }>(
@@ -152,4 +156,7 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+// Only run when invoked directly (not when imported as a module)
+if (require.main === module) {
+  main();
+}

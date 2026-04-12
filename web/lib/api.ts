@@ -40,6 +40,8 @@ async function apiFetch<T>(
   if (typeof window !== 'undefined') {
     const token = path.startsWith('/owners/')
       ? localStorage.getItem('owner_access_token')
+      : path.startsWith('/admin/')
+      ? localStorage.getItem('admin_access_token')
       : localStorage.getItem('access_token');
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -182,6 +184,63 @@ export function removeFavorite(venueId: string): Promise<void> {
   return apiFetch(`/users/me/favorites/${venueId}`, {
     method: 'DELETE',
   });
+}
+
+// ── Admin ──
+
+export function adminLogin(email: string, password: string): Promise<AuthTokens> {
+  return apiFetch('/admin/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function adminGetOwners(status?: string): Promise<OwnerProfile[]> {
+  return apiFetch(`/admin/owners${status ? `?status=${status}` : ''}`);
+}
+
+export function adminVerifyOwner(id: string): Promise<OwnerProfile> {
+  return apiFetch(`/admin/owners/${id}/verify`, { method: 'POST' });
+}
+
+export function adminSuspendOwner(id: string): Promise<OwnerProfile> {
+  return apiFetch(`/admin/owners/${id}/suspend`, { method: 'POST' });
+}
+
+export function adminCreateVenue(input: CreateVenueInput): Promise<Venue> {
+  return apiFetch('/admin/venues', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminUpdateVenue(id: string, input: Partial<CreateVenueInput>): Promise<Venue> {
+  return apiFetch(`/admin/venues/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminDeleteVenue(id: string): Promise<void> {
+  return apiFetch(`/admin/venues/${id}`, { method: 'DELETE' });
+}
+
+export function adminCreateDeal(venueId: string, input: CreateDealInput): Promise<HappyHourDeal> {
+  return apiFetch(`/admin/venues/${venueId}/deals`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminUpdateDeal(dealId: string, input: Partial<CreateDealInput>): Promise<HappyHourDeal> {
+  return apiFetch(`/admin/deals/${dealId}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
+export function adminDeleteDeal(dealId: string): Promise<void> {
+  return apiFetch(`/admin/deals/${dealId}`, { method: 'DELETE' });
 }
 
 // ── Owners ──

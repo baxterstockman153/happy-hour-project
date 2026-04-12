@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# NOTE: This script deploys to AWS via CDK and is kept for reference.
+# The app is now also available on Railway via GitHub integration.
+# Railway auto-deploys on every push to the main branch.
+# To manage the Railway deployment, visit: https://railway.app
+# To manage AWS infrastructure, run this script or use the infra/ CDK stack directly.
 set -euo pipefail
 
 echo "==> Happy Hour Deploy Script"
@@ -34,13 +39,7 @@ echo "[+] Deploying stack..."
 npx cdk deploy --app 'npx ts-node infra/bin/app.ts' --require-approval never --outputs-file cdk-outputs.json
 
 # -------------------------------------------------------------------
-# 5. Build the frontend
-# -------------------------------------------------------------------
-echo "[+] Building frontend..."
-cd web && npm run build && cd ..
-
-# -------------------------------------------------------------------
-# 6. Extract CDK outputs and deploy frontend to S3
+# 5. Extract CDK outputs
 # -------------------------------------------------------------------
 echo ""
 
@@ -106,6 +105,13 @@ else:
 " 2>/dev/null || echo "")
 
   rm -f cdk-outputs.json
+
+  # -------------------------------------------------------------------
+  # 6. Build the frontend with the production API URL baked in
+  # -------------------------------------------------------------------
+  echo "[+] Building frontend..."
+  export NEXT_PUBLIC_API_URL="$API_URL"
+  cd web && npm run build && cd ..
 
   # -------------------------------------------------------------------
   # 7. Sync frontend files to S3

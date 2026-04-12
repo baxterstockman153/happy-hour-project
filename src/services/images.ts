@@ -21,6 +21,7 @@ const s3Client = new S3Client({
 
 const S3_BUCKET = process.env.S3_BUCKET || '';
 const CLOUDFRONT_DOMAIN = process.env.CLOUDFRONT_DOMAIN || '';
+const s3Enabled = !!(process.env.S3_BUCKET && process.env.S3_BUCKET !== '');
 
 function isAllowedContentType(contentType: string): contentType is AllowedContentType {
   return (ALLOWED_CONTENT_TYPES as readonly string[]).includes(contentType);
@@ -35,6 +36,9 @@ export async function generateUploadUrl(
   venueId: string,
   contentType: string
 ): Promise<{ uploadUrl: string; imageKey: string }> {
+  if (!s3Enabled) {
+    throw new Error('S3 image uploads are not configured (S3_BUCKET is not set)');
+  }
   if (!isAllowedContentType(contentType)) {
     throw new Error(
       `Invalid content type: ${contentType}. Allowed types: ${ALLOWED_CONTENT_TYPES.join(', ')}`
@@ -66,6 +70,10 @@ export function getImageUrl(imageKey: string): string {
  * Delete an object from S3.
  */
 export async function deleteImage(imageKey: string): Promise<void> {
+  if (!s3Enabled) {
+    console.warn('S3 not configured — skipping image deletion for key:', imageKey);
+    return;
+  }
   const command = new DeleteObjectCommand({
     Bucket: S3_BUCKET,
     Key: imageKey,

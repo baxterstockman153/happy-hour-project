@@ -1,4 +1,4 @@
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { query, closePool } from './connection';
 
 const SALT_ROUNDS = 10;

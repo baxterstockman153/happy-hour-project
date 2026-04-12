@@ -1,27 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useOwnerAuth } from '@/lib/owner-auth-context';
-import { getVenue, updateOwnerVenue } from '@/lib/api';
+import { useAdminAuth } from '@/lib/admin-auth-context';
+import { getVenue, adminUpdateVenue } from '@/lib/api';
 import VenueForm, { type VenueFormData } from '@/components/forms/VenueForm';
 import Spinner from '@/components/ui/Spinner';
+import ErrorBanner from '@/components/ui/ErrorBanner';
 
-export default function EditVenueForm() {
+function EditVenueContent() {
+  const { admin, loading } = useAdminAuth();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
-  const { owner, loading: authLoading } = useOwnerAuth();
-  const router = useRouter();
 
   const [initialValues, setInitialValues] = useState<Partial<VenueFormData> | null>(null);
   const [loadingVenue, setLoadingVenue] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!authLoading && !owner) {
-      router.replace('/owners/login');
+    if (!loading && !admin) {
+      router.push('/hh-admin/login');
     }
-  }, [authLoading, owner, router]);
+  }, [loading, admin, router]);
 
   useEffect(() => {
     if (!id) return;
@@ -51,9 +52,9 @@ export default function EditVenueForm() {
     fetchVenue();
   }, [id]);
 
-  if (authLoading || !owner) {
+  if (loading || !admin) {
     return (
-      <div className="flex min-h-full items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner className="h-5 w-5 text-zinc-400" />
       </div>
     );
@@ -61,15 +62,15 @@ export default function EditVenueForm() {
 
   if (!id) {
     return (
-      <div className="flex min-h-full items-center justify-center">
-        <p className="text-sm text-red-500">Missing venue ID.</p>
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <ErrorBanner message="Missing venue ID." />
       </div>
     );
   }
 
   if (loadingVenue) {
     return (
-      <div className="flex min-h-full items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner className="h-5 w-5 text-zinc-400" />
       </div>
     );
@@ -77,8 +78,8 @@ export default function EditVenueForm() {
 
   if (loadError) {
     return (
-      <div className="flex min-h-full items-center justify-center">
-        <p className="text-sm text-red-500">{loadError}</p>
+      <div className="mx-auto max-w-2xl px-4 py-12">
+        <ErrorBanner message={loadError} />
       </div>
     );
   }
@@ -91,7 +92,7 @@ export default function EditVenueForm() {
             Edit Venue
           </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Update the details for your venue.
+            Update venue details.
           </p>
         </div>
 
@@ -99,15 +100,23 @@ export default function EditVenueForm() {
           <VenueForm
             initialValues={initialValues ?? undefined}
             submitLabel="Save Changes"
-            accentColor="indigo"
-            onCancel={() => router.push('/owners/dashboard')}
+            accentColor="slate"
+            onCancel={() => router.push(`/hh-admin/venues/detail?id=${id}`)}
             onSubmit={async (data: VenueFormData) => {
-              await updateOwnerVenue(id, data);
-              router.push('/owners/dashboard');
+              await adminUpdateVenue(id, data);
+              router.push(`/hh-admin/venues/detail?id=${id}`);
             }}
           />
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminEditVenuePage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-[60vh] items-center justify-center"><div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" /></div>}>
+      <EditVenueContent />
+    </Suspense>
   );
 }

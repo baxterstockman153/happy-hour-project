@@ -5,6 +5,7 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as lambda_nodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
@@ -15,21 +16,16 @@ export class HappyHourStack extends cdk.Stack {
     super(scope, id, props);
 
     // ---------------------------------------------------------------
-    // VPC — 2 AZs, 1 NAT gateway (cost-conscious)
+    // VPC — 2 AZs, no NAT gateway (cost-optimised: public subnet only)
     // ---------------------------------------------------------------
     const vpc = new ec2.Vpc(this, 'HappyHourVpc', {
       maxAzs: 2,
-      natGateways: 1,
+      natGateways: 0,
       subnetConfiguration: [
         {
           cidrMask: 24,
           name: 'Public',
           subnetType: ec2.SubnetType.PUBLIC,
-        },
-        {
-          cidrMask: 24,
-          name: 'Private',
-          subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS,
         },
       ],
     });
@@ -74,7 +70,7 @@ export class HappyHourStack extends cdk.Stack {
         ec2.InstanceSize.MICRO,
       ),
       vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       securityGroups: [rdsSg],
       credentials: dbCredentials,
       databaseName: 'happyhour',
@@ -83,22 +79,10 @@ export class HappyHourStack extends cdk.Stack {
       maxAllocatedStorage: 50,
       removalPolicy: cdk.RemovalPolicy.SNAPSHOT,
       deletionProtection: false,
+      publiclyAccessible: false,
     });
 
-    // ---------------------------------------------------------------
-    // RDS Proxy — sits between Lambda and RDS for connection pooling
-    // ---------------------------------------------------------------
     const dbSecret = dbInstance.secret!;
-
-    const rdsProxy = new rds.DatabaseProxy(this, 'HappyHourDbProxy', {
-      proxyTarget: rds.ProxyTarget.fromInstance(dbInstance),
-      secrets: [dbSecret],
-      vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
-      securityGroups: [rdsSg],
-      requireTLS: true,
-      dbProxyName: 'happy-hour-proxy',
-    });
 
     // ---------------------------------------------------------------
     // S3 Bucket — venue images, private, versioned
@@ -148,6 +132,19 @@ export class HappyHourStack extends cdk.Stack {
     const frontendOai = new cloudfront.OriginAccessIdentity(this, 'FrontendOAI');
     frontendBucket.grantRead(frontendOai);
 
+    // Rewrite extensionless paths to .html so Next.js static export pages are found
+    const urlRewriteFn = new cloudfront.Function(this, 'UrlRewriteFn', {
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var uri = event.request.uri;
+  if (uri !== '/' && !uri.includes('.')) {
+    event.request.uri = uri.replace(/\\/$/, '') + '.html';
+  }
+  return event.request;
+}
+      `.trim()),
+    });
+
     const frontendDistribution = new cloudfront.CloudFrontWebDistribution(this, 'FrontendDistribution', {
       originConfigs: [{
         s3OriginSource: {
@@ -157,6 +154,10 @@ export class HappyHourStack extends cdk.Stack {
         behaviors: [{
           isDefaultBehavior: true,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          functionAssociations: [{
+            function: urlRewriteFn,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          }],
         }],
       }],
       defaultRootObject: 'index.html',
@@ -188,19 +189,31 @@ export class HappyHourStack extends cdk.Stack {
 
     // ---------------------------------------------------------------
     // Lambda Function — Express app via @vendia/serverless-express
-    // Runtime: Node.js 20, 512MB, 30s timeout, in private subnets
+    // Runtime: Node.js 22, 512MB, 30s timeout, in public subnet
     // ---------------------------------------------------------------
-    const fn = new lambda.Function(this, 'ApiFunction', {
-      runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'lambda.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../../dist')),
+    const fn = new lambda_nodejs.NodejsFunction(this, 'ApiFunction', {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, '../../src/lambda.ts'),
+      handler: 'handler',
+      bundling: {
+        minify: false,
+        sourceMap: true,
+        commandHooks: {
+          beforeBundling: () => [],
+          beforeInstall: () => [],
+          afterBundling: (inputDir: string, outputDir: string) => [
+            `cp -r ${inputDir}/src/db/migrations ${outputDir}/migrations`,
+          ],
+        },
+      },
       memorySize: 512,
       timeout: cdk.Duration.seconds(30),
       vpc,
-      vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      allowPublicSubnet: true,
       securityGroups: [lambdaSg],
       environment: {
-        DATABASE_URL: buildProxyConnectionUrl(rdsProxy, dbSecret),
+        DATABASE_URL: `postgresql://happyhour_admin:RESOLVE_FROM_SECRET@${dbInstance.dbInstanceEndpointAddress}:5432/happyhour?sslmode=require`,
         S3_BUCKET: imagesBucket.bucketName,
         CLOUDFRONT_DOMAIN: distribution.distributionDomainName,
         JWT_SECRET_ARN: jwtSecret.secretArn,
@@ -214,9 +227,6 @@ export class HappyHourStack extends cdk.Stack {
 
     // Grant Lambda read/write on S3
     imagesBucket.grantReadWrite(fn);
-
-    // Grant Lambda permission to connect via RDS Proxy
-    rdsProxy.grantConnect(fn, 'happyhour_admin');
 
     // ---------------------------------------------------------------
     // API Gateway (REST) — proxy integration to Lambda
@@ -263,11 +273,6 @@ export class HappyHourStack extends cdk.Stack {
       description: 'ARN of the RDS credentials secret',
     });
 
-    new cdk.CfnOutput(this, 'RdsProxyEndpoint', {
-      value: rdsProxy.endpoint,
-      description: 'RDS Proxy endpoint',
-    });
-
     new cdk.CfnOutput(this, 'FrontendUrl', {
       value: `https://${frontendDistribution.distributionDomainName}`,
     });
@@ -276,20 +281,4 @@ export class HappyHourStack extends cdk.Stack {
       value: frontendBucket.bucketName,
     });
   }
-}
-
-/**
- * Build a Postgres connection URL that points at the RDS Proxy.
- * At deploy-time we don't have the actual password, so the Lambda
- * should resolve the full DATABASE_URL from Secrets Manager at runtime.
- * This placeholder tells the app which host/port/database to use.
- */
-function buildProxyConnectionUrl(
-  proxy: rds.DatabaseProxy,
-  _secret: secretsmanager.ISecret,
-): string {
-  // The actual username/password should be fetched from Secrets Manager at
-  // runtime. We encode the proxy endpoint here so the app knows where to
-  // connect. The Lambda environment also has the secret ARN for resolving creds.
-  return `postgresql://happyhour_admin:RESOLVE_FROM_SECRET@${proxy.endpoint}:5432/happyhour?sslmode=require`;
 }

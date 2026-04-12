@@ -2,24 +2,24 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useOwnerAuth } from '@/lib/owner-auth-context';
-import { createOwnerVenue } from '@/lib/api';
+import { useAdminAuth } from '@/lib/admin-auth-context';
+import { adminCreateVenue } from '@/lib/api';
 import VenueForm, { type VenueFormData } from '@/components/forms/VenueForm';
 import Spinner from '@/components/ui/Spinner';
 
-export default function NewVenuePage() {
-  const { owner, loading: authLoading } = useOwnerAuth();
+export default function AdminNewVenuePage() {
+  const { admin, loading } = useAdminAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && !owner) {
-      router.replace('/owners/login');
+    if (!loading && !admin) {
+      router.push('/hh-admin/login');
     }
-  }, [authLoading, owner, router]);
+  }, [loading, admin, router]);
 
-  if (authLoading || !owner) {
+  if (loading || !admin) {
     return (
-      <div className="flex min-h-full items-center justify-center">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <Spinner className="h-5 w-5 text-zinc-400" />
       </div>
     );
@@ -30,21 +30,21 @@ export default function NewVenuePage() {
       <div className="w-full max-w-2xl space-y-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-            Add New Venue
+            Add Venue
           </h1>
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-            Fill in the details below to register a new venue.
+            Create a new venue in the system.
           </p>
         </div>
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <VenueForm
             submitLabel="Create Venue"
-            accentColor="indigo"
-            onCancel={() => router.push('/owners/dashboard')}
+            accentColor="slate"
+            onCancel={() => router.push('/hh-admin/dashboard?tab=venues')}
             onSubmit={async (data: VenueFormData) => {
-              await createOwnerVenue(data);
-              router.push('/owners/dashboard');
+              await adminCreateVenue(data);
+              router.push('/hh-admin/dashboard?tab=venues');
             }}
           />
         </div>
