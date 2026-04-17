@@ -6,6 +6,8 @@ import { getHappeningNow, getNearbyDeals, addFavorite, removeFavorite } from '@/
 import type { DealWithVenue, DealType } from '@api-types';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const RADIUS_OPTIONS = [1, 5, 10, 25] as const;
 
 function formatTime(time: string): string {
   const [hourStr, minuteStr] = time.split(':');
@@ -151,9 +153,15 @@ export default function Home() {
   const { user } = useAuth();
   const [happeningNow, setHappeningNow] = useState<DealWithVenue[]>([]);
   const [nearbyDeals, setNearbyDeals] = useState<DealWithVenue[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [locating, setLocating] = useState(true);
+  const [dealsLoading, setDealsLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Filter state — day defaults to today
+  const [dealTypeFilter, setDealTypeFilter] = useState<DealType | undefined>(undefined);
+  const [radiusFilter, setRadiusFilter] = useState<(typeof RADIUS_OPTIONS)[number]>(5);
+  const [dayFilter, setDayFilter] = useState(() => new Date().getDay());
 
   // Request geolocation on mount
   useEffect(() => {
@@ -161,7 +169,7 @@ export default function Home() {
       setLocationError(
         'Geolocation is not supported by your browser. Please use a modern browser to see nearby deals.'
       );
-      setLoading(false);
+      setLocating(false);
       return;
     }
 
@@ -171,6 +179,7 @@ export default function Home() {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
         });
+        setLocating(false);
       },
       (error) => {
         let message = 'Unable to get your location.';
@@ -183,34 +192,29 @@ export default function Home() {
           message = 'Location request timed out. Please try again.';
         }
         setLocationError(message);
-        setLoading(false);
+        setLocating(false);
       },
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
     );
   }, []);
 
-  // Fetch deals once we have coordinates
+  // Fetch happening-now once when coords are available
   useEffect(() => {
     if (!coords) return;
-
-    async function fetchDeals() {
-      setLoading(true);
-      try {
-        const [nowData, nearbyData] = await Promise.all([
-          getHappeningNow(coords!.lat, coords!.lng),
-          getNearbyDeals(coords!.lat, coords!.lng),
-        ]);
-        setHappeningNow(nowData);
-        setNearbyDeals(nearbyData.data);
-      } catch (err) {
-        console.error('Failed to fetch deals:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchDeals();
+    getHappeningNow(coords.lat, coords.lng)
+      .then(setHappeningNow)
+      .catch((err) => console.error('Failed to fetch happening now:', err));
   }, [coords]);
+
+  // Fetch nearby deals whenever coords or any filter changes
+  useEffect(() => {
+    if (!coords) return;
+    setDealsLoading(true);
+    getNearbyDeals(coords.lat, coords.lng, radiusFilter, dayFilter, undefined, dealTypeFilter)
+      .then((res) => setNearbyDeals(res.data))
+      .catch((err) => console.error('Failed to fetch nearby deals:', err))
+      .finally(() => setDealsLoading(false));
+  }, [coords, dealTypeFilter, radiusFilter, dayFilter]);
 
   const handleToggleFavorite = useCallback(
     async (deal: DealWithVenue) => {
@@ -218,7 +222,6 @@ export default function Home() {
 
       const wasFavorited = deal.venue.is_favorited;
 
-      // Optimistic update helper
       const updateDeal = (d: DealWithVenue): DealWithVenue =>
         d.id === deal.id
           ? { ...d, venue: { ...d.venue, is_favorited: !wasFavorited } }
@@ -235,7 +238,6 @@ export default function Home() {
         }
       } catch (err) {
         console.error('Failed to toggle favorite:', err);
-        // Revert on failure
         const revertDeal = (d: DealWithVenue): DealWithVenue =>
           d.id === deal.id
             ? { ...d, venue: { ...d.venue, is_favorited: wasFavorited } }
@@ -247,14 +249,12 @@ export default function Home() {
     []
   );
 
-  // Loading state
-  if (loading) {
+  // Full-page spinner while waiting for geolocation
+  if (locating) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-4">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-amber-200 border-t-amber-500" />
-        <p className="text-sm text-zinc-500">
-          {coords ? 'Finding deals near you...' : 'Getting your location...'}
-        </p>
+        <p className="text-sm text-zinc-500">Getting your location...</p>
       </div>
     );
   }
@@ -290,6 +290,8 @@ export default function Home() {
     );
   }
 
+  const today = new Date().getDay();
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       {/* Hero: Happening Now */}
@@ -318,16 +320,96 @@ export default function Home() {
 
       {/* Nearby Deals */}
       <section>
-        <div className="mb-6">
+        <div className="mb-4">
           <h2 className="text-2xl font-bold text-zinc-900">Nearby Deals</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Happy hour specials in your area
-          </p>
+          <p className="mt-1 text-sm text-zinc-500">Happy hour specials in your area</p>
         </div>
 
-        {nearbyDeals.length === 0 ? (
+        {/* Filter Bar */}
+        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm space-y-4">
+          {/* Deal Type */}
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Deal Type
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(
+                [
+                  { value: undefined, label: 'All' },
+                  { value: 'drinks' as DealType, label: 'Drinks' },
+                  { value: 'food' as DealType, label: 'Food' },
+                  { value: 'both' as DealType, label: 'Food & Drinks' },
+                ] as const
+              ).map(({ value, label }) => (
+                <button
+                  key={label}
+                  onClick={() => setDealTypeFilter(value)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                    dealTypeFilter === value
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Day of Week */}
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">Day</p>
+            <div className="flex flex-wrap gap-2">
+              {DAY_SHORT.map((name, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setDayFilter(idx)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                    dayFilter === idx
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {name}
+                  {idx === today && (
+                    <span className="ml-1 inline-block h-1 w-1 rounded-full bg-current opacity-60" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Distance */}
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Distance
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {RADIUS_OPTIONS.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRadiusFilter(r)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                    radiusFilter === r
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {r} mi
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Results */}
+        {dealsLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-200 border-t-amber-500" />
+          </div>
+        ) : nearbyDeals.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-300 bg-white py-16 text-center">
-            <p className="text-zinc-500">No deals found nearby. Check back soon!</p>
+            <p className="text-zinc-500">No deals found. Try adjusting your filters.</p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
