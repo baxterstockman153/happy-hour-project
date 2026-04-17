@@ -6,6 +6,7 @@ import { getHappeningNow, getNearbyDeals, addFavorite, removeFavorite } from '@/
 import type { DealWithVenue, DealType } from '@api-types';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatTime(time: string): string {
   const [hourStr, minuteStr] = time.split(':');
@@ -147,13 +148,146 @@ function DealCard({
   );
 }
 
+const DEAL_TYPE_OPTIONS: { value: DealType | undefined; label: string }[] = [
+  { value: undefined, label: 'All' },
+  { value: 'drinks', label: 'Drinks' },
+  { value: 'food', label: 'Food' },
+  { value: 'both', label: 'Food & Drinks' },
+];
+
+const RADIUS_OPTIONS = [
+  { value: 1, label: '1 mi' },
+  { value: 2, label: '2 mi' },
+  { value: 5, label: '5 mi' },
+  { value: 10, label: '10 mi' },
+];
+
+function FiltersBar({
+  dealType,
+  onDealTypeChange,
+  selectedDay,
+  onDayChange,
+  radius,
+  onRadiusChange,
+  todayIndex,
+}: {
+  dealType: DealType | undefined;
+  onDealTypeChange: (v: DealType | undefined) => void;
+  selectedDay: number | undefined;
+  onDayChange: (v: number | undefined) => void;
+  radius: number;
+  onRadiusChange: (v: number) => void;
+  todayIndex: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+      <div className="flex flex-col gap-5">
+        {/* Deal Type */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Deal Type
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {DEAL_TYPE_OPTIONS.map((opt) => {
+              const active = dealType === opt.value;
+              return (
+                <button
+                  key={opt.label}
+                  onClick={() => onDealTypeChange(opt.value)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Day of Week */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Day
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => onDayChange(undefined)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                selectedDay === undefined
+                  ? 'bg-amber-500 text-white shadow-sm'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              }`}
+            >
+              Any
+            </button>
+            {DAY_SHORT.map((name, idx) => {
+              const active = selectedDay === idx;
+              const isToday = idx === todayIndex;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => onDayChange(idx)}
+                  className={`relative rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {name}
+                  {isToday && !active && (
+                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-amber-400 ring-1 ring-white" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Distance */}
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Distance
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {RADIUS_OPTIONS.map((opt) => {
+              const active = radius === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => onRadiusChange(opt.value)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    active
+                      ? 'bg-amber-500 text-white shadow-sm'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const { user } = useAuth();
   const [happeningNow, setHappeningNow] = useState<DealWithVenue[]>([]);
   const [nearbyDeals, setNearbyDeals] = useState<DealWithVenue[]>([]);
   const [loading, setLoading] = useState(true);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+
+  const todayIndex = new Date().getDay();
+  const [dealType, setDealType] = useState<DealType | undefined>(undefined);
+  const [selectedDay, setSelectedDay] = useState<number | undefined>(undefined);
+  const [radius, setRadius] = useState<number>(5);
 
   // Request geolocation on mount
   useEffect(() => {
@@ -189,16 +323,16 @@ export default function Home() {
     );
   }, []);
 
-  // Fetch deals once we have coordinates
+  // Initial fetch once coords are available
   useEffect(() => {
     if (!coords) return;
 
-    async function fetchDeals() {
+    async function fetchInitial() {
       setLoading(true);
       try {
         const [nowData, nearbyData] = await Promise.all([
           getHappeningNow(coords!.lat, coords!.lng),
-          getNearbyDeals(coords!.lat, coords!.lng),
+          getNearbyDeals(coords!.lat, coords!.lng, radius, selectedDay, undefined, dealType),
         ]);
         setHappeningNow(nowData);
         setNearbyDeals(nearbyData.data);
@@ -209,8 +343,29 @@ export default function Home() {
       }
     }
 
-    fetchDeals();
+    fetchInitial();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coords]);
+
+  // Re-fetch nearby when filters change (coords must be set)
+  useEffect(() => {
+    if (!coords) return;
+
+    async function fetchFiltered() {
+      setNearbyLoading(true);
+      try {
+        const data = await getNearbyDeals(coords!.lat, coords!.lng, radius, selectedDay, undefined, dealType);
+        setNearbyDeals(data.data);
+      } catch (err) {
+        console.error('Failed to fetch deals:', err);
+      } finally {
+        setNearbyLoading(false);
+      }
+    }
+
+    fetchFiltered();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealType, selectedDay, radius]);
 
   const handleToggleFavorite = useCallback(
     async (deal: DealWithVenue) => {
@@ -218,7 +373,6 @@ export default function Home() {
 
       const wasFavorited = deal.venue.is_favorited;
 
-      // Optimistic update helper
       const updateDeal = (d: DealWithVenue): DealWithVenue =>
         d.id === deal.id
           ? { ...d, venue: { ...d.venue, is_favorited: !wasFavorited } }
@@ -235,7 +389,6 @@ export default function Home() {
         }
       } catch (err) {
         console.error('Failed to toggle favorite:', err);
-        // Revert on failure
         const revertDeal = (d: DealWithVenue): DealWithVenue =>
           d.id === deal.id
             ? { ...d, venue: { ...d.venue, is_favorited: wasFavorited } }
@@ -292,11 +445,27 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      {/* Hero: Happening Now */}
+      {/* Filters */}
+      <section className="mb-8">
+        <h1 className="mb-4 text-2xl font-bold text-zinc-900 sm:text-3xl">
+          Find Happy Hour
+        </h1>
+        <FiltersBar
+          dealType={dealType}
+          onDealTypeChange={setDealType}
+          selectedDay={selectedDay}
+          onDayChange={setSelectedDay}
+          radius={radius}
+          onRadiusChange={setRadius}
+          todayIndex={todayIndex}
+        />
+      </section>
+
+      {/* Happening Now */}
       {happeningNow.length > 0 && (
         <section className="mb-10">
           <div className="mb-6 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-8 text-white shadow-lg sm:px-8 sm:py-10">
-            <h1 className="mb-1 text-2xl font-bold sm:text-3xl">Happening Now</h1>
+            <h2 className="mb-1 text-2xl font-bold sm:text-3xl">Happening Now</h2>
             <p className="text-amber-100">Deals that are live right now near you</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -318,19 +487,30 @@ export default function Home() {
 
       {/* Nearby Deals */}
       <section>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-zinc-900">Nearby Deals</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Happy hour specials in your area
-          </p>
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-zinc-900">
+              {selectedDay !== undefined
+                ? `${DAY_NAMES[selectedDay]} Deals`
+                : 'Nearby Deals'}
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              {dealType
+                ? `${dealType === 'both' ? 'Food & drinks' : dealType} specials within ${radius} mi`
+                : `All happy hour specials within ${radius} mi`}
+            </p>
+          </div>
+          {nearbyLoading && (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-200 border-t-amber-500" />
+          )}
         </div>
 
         {nearbyDeals.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-300 bg-white py-16 text-center">
-            <p className="text-zinc-500">No deals found nearby. Check back soon!</p>
+            <p className="text-zinc-500">No deals match your filters. Try adjusting them above.</p>
           </div>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 transition-opacity ${nearbyLoading ? 'opacity-50' : 'opacity-100'}`}>
             {nearbyDeals.map((deal) => (
               <DealCard
                 key={deal.id}
