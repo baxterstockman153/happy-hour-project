@@ -13,3 +13,4 @@ cdk.out/
 web/node_modules/
 web/.next/
 web/out/
+*.idea

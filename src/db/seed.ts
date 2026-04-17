@@ -210,6 +210,72 @@ const venues: SeedVenue[] = [
     image_url: null,
     category: 'restaurant',
   },
+  // ── All-day anchors (ensure ≥5 deals active at any hour) ──
+  {
+    name: 'Hole in the Wall',
+    address: '2538 Guadalupe St',
+    city: 'Austin',
+    state: 'TX',
+    zip: '78705',
+    lat: 30.2910,
+    lng: -97.7432,
+    phone: '512-555-1100',
+    website: null,
+    image_url: null,
+    category: 'bar',
+  },
+  {
+    name: 'Congress Ave Café',
+    address: '418 Congress Ave',
+    city: 'Austin',
+    state: 'TX',
+    zip: '78701',
+    lat: 30.2659,
+    lng: -97.7430,
+    phone: '512-555-1101',
+    website: null,
+    image_url: null,
+    category: 'restaurant',
+  },
+  {
+    name: 'The Cambie',
+    address: '300 Cambie St',
+    city: 'Vancouver',
+    state: 'BC',
+    zip: 'V6B 2N1',
+    lat: 49.2829,
+    lng: -123.1115,
+    phone: '604-555-1200',
+    website: null,
+    image_url: null,
+    category: 'pub',
+  },
+  {
+    name: "Pat's Pub",
+    address: '403 Columbia St',
+    city: 'Vancouver',
+    state: 'BC',
+    zip: 'V6A 2R7',
+    lat: 49.2798,
+    lng: -123.1082,
+    phone: '604-555-1201',
+    website: null,
+    image_url: null,
+    category: 'bar',
+  },
+  {
+    name: 'The Mezzanine Bar',
+    address: '444 Jessie St',
+    city: 'San Francisco',
+    state: 'CA',
+    zip: '94103',
+    lat: 37.7812,
+    lng: -122.4072,
+    phone: '415-555-1300',
+    website: null,
+    image_url: null,
+    category: 'bar',
+  },
   // ── San Francisco, CA ──
   {
     name: 'Zeitgeist',
@@ -523,10 +589,56 @@ const deals: SeedDeal[] = [
     description: 'Sunday brunch: bottomless caesars for $18',
     deal_type: 'drinks',
   },
-  // ── San Francisco ──
-  // Zeitgeist (index 14)
+  // ── All-day anchors (indices 14–18) ──
+  // Hole in the Wall (index 14)
   {
     venueIndex: 14,
+    day_of_week: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '00:00',
+    end_time: '23:59',
+    description: '$3 PBR tallboys and $2 off well drinks all day',
+    deal_type: 'drinks',
+  },
+  // Congress Ave Café (index 15)
+  {
+    venueIndex: 15,
+    day_of_week: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '00:00',
+    end_time: '23:59',
+    description: '$5 bottomless mimosas and half-price breakfast plates all day',
+    deal_type: 'both',
+  },
+  // The Cambie (index 16)
+  {
+    venueIndex: 16,
+    day_of_week: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '00:00',
+    end_time: '23:59',
+    description: '$5 domestic pints and $8 nachos all day',
+    deal_type: 'both',
+  },
+  // Pat's Pub (index 17)
+  {
+    venueIndex: 17,
+    day_of_week: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '00:00',
+    end_time: '23:59',
+    description: '$4 rotating tap specials all day',
+    deal_type: 'drinks',
+  },
+  // The Mezzanine Bar (index 18)
+  {
+    venueIndex: 18,
+    day_of_week: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '00:00',
+    end_time: '23:59',
+    description: '$5 well drinks and $4 drafts all day',
+    deal_type: 'drinks',
+  },
+  // ── San Francisco ──
+  // Zeitgeist (index 19)
+  {
+    venueIndex: 19,
     day_of_week: [1, 2, 3, 4, 5],
     start_time: '14:00',
     end_time: '18:00',
@@ -534,16 +646,16 @@ const deals: SeedDeal[] = [
     deal_type: 'drinks',
   },
   {
-    venueIndex: 14,
+    venueIndex: 19,
     day_of_week: [6, 0],
     start_time: '12:00',
     end_time: '16:00',
     description: 'Weekend day-drinking: $3 tallboys in the beer garden',
     deal_type: 'drinks',
   },
-  // Anchor Brewing Taproom (index 15)
+  // Anchor Brewing Taproom (index 20)
   {
-    venueIndex: 15,
+    venueIndex: 20,
     day_of_week: [2, 3, 4],
     start_time: '16:00',
     end_time: '19:00',
@@ -551,34 +663,34 @@ const deals: SeedDeal[] = [
     deal_type: 'both',
   },
   {
-    venueIndex: 15,
+    venueIndex: 20,
     day_of_week: [5],
     start_time: '15:00',
     end_time: '19:00',
     description: 'Friday flight: 5 tasters for $10',
     deal_type: 'drinks',
   },
-  // Smuggler's Cove (index 16)
+  // Smuggler's Cove (index 21)
   {
-    venueIndex: 16,
+    venueIndex: 21,
     day_of_week: [1, 2, 3, 4],
     start_time: '17:00',
     end_time: '19:00',
     description: '$9 classic tiki cocktails',
     deal_type: 'drinks',
   },
-  // The Pub at Ghirardelli (index 17)
+  // The Pub at Ghirardelli (index 22)
   {
-    venueIndex: 17,
+    venueIndex: 22,
     day_of_week: [0, 1, 2, 3, 4, 5, 6],
     start_time: '15:00',
     end_time: '18:00',
     description: '$5 local drafts and $8 fish & chips',
     deal_type: 'both',
   },
-  // Ferry Building Wine Bar (index 18)
+  // Ferry Building Wine Bar (index 23)
   {
-    venueIndex: 18,
+    venueIndex: 23,
     day_of_week: [3, 4, 5],
     start_time: '16:00',
     end_time: '19:00',
@@ -586,16 +698,16 @@ const deals: SeedDeal[] = [
     deal_type: 'drinks',
   },
   {
-    venueIndex: 18,
+    venueIndex: 23,
     day_of_week: [5],
     start_time: '16:00',
     end_time: '19:00',
     description: 'Friday oyster & wine pairing: 6 oysters + glass for $14',
     deal_type: 'both',
   },
-  // Mission Street Tacos & Tequila (index 19)
+  // Mission Street Tacos & Tequila (index 24)
   {
-    venueIndex: 19,
+    venueIndex: 24,
     day_of_week: [1, 2, 3, 4, 5],
     start_time: '15:00',
     end_time: '18:00',
@@ -603,7 +715,7 @@ const deals: SeedDeal[] = [
     deal_type: 'both',
   },
   {
-    venueIndex: 19,
+    venueIndex: 24,
     day_of_week: [2],
     start_time: '17:00',
     end_time: '21:00',
