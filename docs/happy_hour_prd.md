@@ -1,106 +1,155 @@
-# Happy Hour Discovery & Reservation Platform  
-## Product Requirements Document (PRD)
+# Happy Hour Discovery & Reservation Platform
+## Product Requirements Document (PRD) with Subtasks
 
 ---
 
-## 1. Overview
+## 1. 🧭 Overview
 
 ### Problem
 Users in an unfamiliar city struggle to:
-- Find relevant happy hour options quickly  
-- Compare pricing and quality across venues  
-- Filter results effectively  
-- Secure reservations reliably  
+- Find relevant happy hour options quickly
+- Compare pricing and quality across venues
+- Filter results effectively
+- Secure reservations reliably
+
+This leads to:
+- Decision fatigue
+- Inaccurate expectations (pricing, availability)
+- Frustration due to poor UX or outdated data
+
+---
 
 ### Vision
-Build a context-aware discovery platform that helps users go from search → compare → filter → reserve with minimal friction.
+Build a context-aware discovery platform that helps users go from:
+**search → filter → compare → reserve**  
+with minimal friction and high confidence.
+
+---
 
 ### Success Metrics
 - Time to decision
-- Conversion rate
-- Drop-off rate
-- Successful reservations
+- Conversion rate (search → reservation)
+- Drop-off rate per stage
+- % successful reservations
 - User satisfaction (NPS)
 
 ---
 
-## 2. Target User
+## 2. 👤 Target User
 
-**Primary Persona**
-- 35-year-old professional in a new city
+### Primary Persona
+- 35-year-old professional
+- In a new city
+- Looking for a social happy hour after work
 
-**Job-To-Be-Done**
-Help me quickly find a good happy hour spot and book it without hassle.
-
----
-
-## 3. User Journey
-
-1. Search  
-2. Filter  
-3. Compare  
-4. Reserve  
+### Job-To-Be-Done
+> “Help me quickly find a good happy hour spot and book it without hassle.”
 
 ---
 
-## 4. Pain Points
+## 3. 🧩 User Journey
 
-### Search
+1. Search
+2. Filter
+3. Compare
+4. Reserve
+
+---
+
+## 4. ⚠️ Key Pain Points
+
+### Search Stage
 - Too many results
-- Poor queries
-- Outdated info
+- Poor query formulation
+- Limited internet / language barriers
+- Outdated information
 
-### Filter
+### Filter Stage
 - Confusing filters
-- Irrelevant results
+- Inaccurate results
+- Limited customization
 
-### Compare
+### Compare Stage
 - Inconsistent pricing
-- Hidden fees
+- Hidden costs
+- Poor navigation
 
-### Reservation
+### Reservation Stage
+- Unclear process
 - No real-time availability
 - Booking failures
+- Miscommunication
 
 ---
 
-## 5. Product Requirements
+## 5. 🧠 Product Requirements
 
-### Search
+### 5.1 Search
 - Geo-aware results
 - Smart suggestions
+- Aggregated venue listings
+- Offline fallback (cached results)
 
-### Filtering
-- Time, price, distance, category
+---
 
-### Comparison
-- Normalized pricing
-- Ratings + highlights
+### 5.2 Filtering
+- Time window
+- Price range
+- Distance
+- Category (bar, restaurant)
 
-### Reservation
+**Future**
+- Ambience
+- Drink type
+- Group suitability
+
+---
+
+### 5.3 Comparison
+- Normalize pricing
+- Show:
+   - Ratings
+   - Reviews
+   - Deals
+
+- Highlight:
+   - Best value
+   - Popular options
+   - Nearby options
+
+---
+
+### 5.4 Reservation
 - Real-time availability
 - Simple booking flow
-- Confirmation via app + email
+- Confirmation via:
+   - Email
+   - (Future) SMS / in-app
 
 ---
 
-## 6. System Design
+## 6. 🏗️ System Design (High-Level)
 
-[Frontend]
-   ↓
-[API Gateway]
-   ↓
-[Backend Services]
-   ├── Search Service
-   ├── Filtering Engine
-   ├── Comparison Engine
-   ├── Reservation Service
-   ↓
-[Database]
+Frontend  
+↓  
+API Gateway  
+↓  
+Backend Services
+- Search Service
+- Filtering Engine
+- Comparison Engine
+- Reservation Service
+
+↓  
+Database Layer
+- Venues
+- Deals
+- Availability
+- Reservations
 
 ---
 
-## 7. Data Models
+## 7. 🗃️ Data Models (Simplified)
 
 ### Venue
 - id
@@ -111,7 +160,8 @@ Help me quickly find a good happy hour spot and book it without hassle.
 
 ### HappyHourDeal
 - venue_id
-- time window
+- start_time
+- end_time
 - items + prices
 
 ### Reservation
@@ -130,48 +180,159 @@ Help me quickly find a good happy hour spot and book it without hassle.
 
 ---
 
-## 8. Key Flows
+## 8. 🔄 Detailed User Flow (Subtasks)
 
-### Reservation
-User → Select venue → Check availability → Book → Confirm
-
-### Discovery
-Search → Filter → Compare → Rank results
+### 8.1 Reservation Flow (End-to-End)
 
 ---
 
-## 9. Non-Functional Requirements
+### 1. Visit Website / Platform
+- Access reservation interface
+- Login or create account
+- Handle:
+   - Slow loading / downtime
+   - Navigation issues
+   - Account friction
 
-- Fast search (<300ms)
-- Reliable bookings (idempotent)
-- Fresh pricing + availability
+**System Considerations**
+- CDN + caching
+- Auth service
+- Graceful fallback
 
 ---
 
-## 10. MVP Scope
+### 2. Select Time Slot
+- View available time slots
+- Understand:
+   - Time format
+   - Time zone
+
+- Handle:
+   - Limited availability
+   - unclear UI
+
+**System Considerations**
+- Real-time availability API
+- Time-slot normalization
+- Caching vs live queries
+
+---
+
+### 3. Enter Details
+User inputs:
+- Name
+- Contact info
+- Party size
+- Special requests
+
+Pain points:
+- Data entry errors
+- No autofill
+- Mobile UX issues
+
+**System Considerations**
+- Form validation (client + server)
+- Autofill support
+- Mobile-first UI
+
+---
+
+### 4. Review Information
+User verifies:
+- Time
+- Venue
+- Guest count
+
+Pain points:
+- Incorrect display
+- No ability to edit
+- Overwhelming options
+
+**System Considerations**
+- Editable draft state
+- Clear UI for validation
+- Data consistency checks
+
+---
+
+### 5. Submit Reservation
+- Submit booking request
+
+Possible failures:
+- Form validation errors
+- Payment issues
+- Server failures
+
+**System Considerations**
+- Idempotent API (`POST /reservations`)
+- Retry logic
+- Transaction handling
+
+---
+
+### 6. Receive Confirmation
+- Confirmation via:
+   - Email
+   - (Future) SMS / push
+
+Pain points:
+- Delays
+- Incorrect details
+- Spam filtering
+
+**System Considerations**
+- Notification service
+- Retry + delivery guarantees
+- Observability (logs + metrics)
+
+---
+
+## 9. ⚙️ Non-Functional Requirements
+
+### Performance
+- Search < 300ms
+- Filter updates < 100ms
+
+### Reliability
+- Idempotent reservation creation
+- Retry-safe workflows
+
+### Data Freshness
+- Near real-time pricing + availability
+
+---
+
+## 10. 🚀 MVP Scope
 
 ### Must Have
 - Search
-- Filters
+- Basic filters
+- Venue listing
 - Reservation flow
+
+### Nice to Have
+- Reviews
+- Price comparison
 
 ### Future
 - Personalization
 - Recommendations
-- Social features
+- Social planning
 
 ---
 
-## 11. Risks
+## 11. ⚠️ Risks & Considerations
 
-- Data freshness
+- Data freshness (critical)
 - Integration with venues
 - UX complexity
+- Cold start (data availability)
 
 ---
 
-## 12. Insight
+## 12. 🧠 Key Insight
 
-This is a decision engine, not just a search tool.
+This is not just a search tool — it’s a **decision engine**.
 
-Value = reducing decision time and uncertainty.
+The real value is:
+> Reducing decision time and uncertainty, not just listing options.

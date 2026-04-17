@@ -10,6 +10,7 @@ import imageRouter from './routes/images';
 import searchRouter from './routes/search';
 import notificationsRouter from './routes/notifications';
 import ownerRouter from './routes/owners';
+import reservationsRouter from './routes/reservations';
 
 dotenv.config();
 
@@ -33,6 +34,7 @@ app.use('/admin', imageRouter);
 app.use('/search', searchRouter);
 app.use('/owners', ownerRouter);
 app.use('/notifications', notificationsRouter);
+app.use('/reservations', reservationsRouter);
 
 // 404 handler
 app.use((_req, res) => {

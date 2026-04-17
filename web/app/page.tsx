@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { getHappeningNow, getNearbyDeals, addFavorite, removeFavorite } from '@/lib/api';
 import type { DealWithVenue, DealType } from '@api-types';
+import ReservationModal from '@/components/ReservationModal';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -66,10 +67,12 @@ function DealCard({
   deal,
   isLoggedIn,
   onToggleFavorite,
+  onReserve,
 }: {
   deal: DealWithVenue;
   isLoggedIn: boolean;
   onToggleFavorite: (deal: DealWithVenue) => void;
+  onReserve: (deal: DealWithVenue) => void;
 }) {
   const days = deal.day_of_week.map((d) => DAY_NAMES[d]).join(', ');
 
@@ -106,42 +109,50 @@ function DealCard({
       {/* Description */}
       <p className="mb-3 text-sm leading-relaxed text-zinc-700">{deal.description}</p>
 
-      {/* Footer details */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
-        <span className="flex items-center gap-1">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            className="h-3.5 w-3.5"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          {formatTime(deal.start_time)} &ndash; {formatTime(deal.end_time)}
-        </span>
-        <span className="flex items-center gap-1">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            className="h-3.5 w-3.5"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
-            />
-          </svg>
-          {days}
-        </span>
+      {/* Footer details + Reserve button */}
+      <div className="flex flex-wrap items-center justify-between gap-y-3">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+          <span className="flex items-center gap-1">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="h-3.5 w-3.5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            {formatTime(deal.start_time)} &ndash; {formatTime(deal.end_time)}
+          </span>
+          <span className="flex items-center gap-1">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+              className="h-3.5 w-3.5"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+              />
+            </svg>
+            {days}
+          </span>
+        </div>
+        <button
+          onClick={() => onReserve(deal)}
+          className="rounded-lg bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-1"
+        >
+          Reserve
+        </button>
       </div>
     </div>
   );
@@ -154,6 +165,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [reservingDeal, setReservingDeal] = useState<DealWithVenue | null>(null);
 
   // Request geolocation on mount
   useEffect(() => {
@@ -211,6 +223,10 @@ export default function Home() {
 
     fetchDeals();
   }, [coords]);
+
+  const handleReserve = useCallback((deal: DealWithVenue) => {
+    setReservingDeal(deal);
+  }, []);
 
   const handleToggleFavorite = useCallback(
     async (deal: DealWithVenue) => {
@@ -291,57 +307,69 @@ export default function Home() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-      {/* Hero: Happening Now */}
-      {happeningNow.length > 0 && (
-        <section className="mb-10">
-          <div className="mb-6 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-8 text-white shadow-lg sm:px-8 sm:py-10">
-            <h1 className="mb-1 text-2xl font-bold sm:text-3xl">Happening Now</h1>
-            <p className="text-amber-100">Deals that are live right now near you</p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {happeningNow.map((deal) => (
-              <div key={deal.id} className="relative">
-                <div className="absolute -top-2 left-4 z-10 rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm">
-                  Live
+    <>
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+        {/* Hero: Happening Now */}
+        {happeningNow.length > 0 && (
+          <section className="mb-10">
+            <div className="mb-6 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 px-6 py-8 text-white shadow-lg sm:px-8 sm:py-10">
+              <h1 className="mb-1 text-2xl font-bold sm:text-3xl">Happening Now</h1>
+              <p className="text-amber-100">Deals that are live right now near you</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {happeningNow.map((deal) => (
+                <div key={deal.id} className="relative">
+                  <div className="absolute -top-2 left-4 z-10 rounded-full bg-amber-500 px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm">
+                    Live
+                  </div>
+                  <DealCard
+                    deal={deal}
+                    isLoggedIn={!!user}
+                    onToggleFavorite={handleToggleFavorite}
+                    onReserve={handleReserve}
+                  />
                 </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Nearby Deals */}
+        <section>
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-zinc-900">Nearby Deals</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Happy hour specials in your area
+            </p>
+          </div>
+
+          {nearbyDeals.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-zinc-300 bg-white py-16 text-center">
+              <p className="text-zinc-500">No deals found nearby. Check back soon!</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {nearbyDeals.map((deal) => (
                 <DealCard
+                  key={deal.id}
                   deal={deal}
                   isLoggedIn={!!user}
                   onToggleFavorite={handleToggleFavorite}
+                  onReserve={handleReserve}
                 />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </section>
+      </div>
+
+      {reservingDeal && (
+        <ReservationModal
+          deal={reservingDeal}
+          defaultEmail={user?.email ?? ''}
+          onClose={() => setReservingDeal(null)}
+        />
       )}
-
-      {/* Nearby Deals */}
-      <section>
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-zinc-900">Nearby Deals</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Happy hour specials in your area
-          </p>
-        </div>
-
-        {nearbyDeals.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-zinc-300 bg-white py-16 text-center">
-            <p className="text-zinc-500">No deals found nearby. Check back soon!</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {nearbyDeals.map((deal) => (
-              <DealCard
-                key={deal.id}
-                deal={deal}
-                isLoggedIn={!!user}
-                onToggleFavorite={handleToggleFavorite}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
+    </>
   );
 }

@@ -186,6 +186,39 @@ export function removeFavorite(venueId: string): Promise<void> {
   });
 }
 
+// ── Reservations ──
+
+export interface ReservationInput {
+  deal_id: string;
+  venue_id: string;
+  venue_name: string;
+  date: string;
+  party_size: number;
+  name: string;
+  email: string;
+  phone?: string;
+  special_requests?: string;
+}
+
+export interface ReservationConfirmation {
+  id: string;
+  venue_name: string | null;
+  date: string;
+  party_size: number;
+  name: string;
+  email: string;
+  status: string;
+}
+
+export function createReservation(
+  input: ReservationInput,
+): Promise<{ message: string; reservation: ReservationConfirmation }> {
+  return apiFetch('/reservations', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 // ── Admin ──
 
 export function adminLogin(email: string, password: string): Promise<AuthTokens> {
