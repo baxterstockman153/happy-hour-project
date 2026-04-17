@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { getHappeningNow, getNearbyDeals, addFavorite, removeFavorite } from '@/lib/api';
 import type { DealWithVenue, DealType } from '@api-types';
+import ReservationModal from '@/components/ReservationModal';
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -68,10 +69,12 @@ function DealCard({
   deal,
   isLoggedIn,
   onToggleFavorite,
+  onReserve,
 }: {
   deal: DealWithVenue;
   isLoggedIn: boolean;
   onToggleFavorite: (deal: DealWithVenue) => void;
+  onReserve: (deal: DealWithVenue) => void;
 }) {
   const days = deal.day_of_week.map((d) => DAY_NAMES[d]).join(', ');
 
@@ -145,6 +148,14 @@ function DealCard({
           {days}
         </span>
       </div>
+
+      {/* Reserve button */}
+      <button
+        onClick={() => onReserve(deal)}
+        className="mt-3 w-full rounded-lg border border-amber-200 bg-amber-50 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 active:bg-amber-200 transition-colors"
+      >
+        Reserve a Spot
+      </button>
     </div>
   );
 }
@@ -157,6 +168,7 @@ export default function Home() {
   const [dealsLoading, setDealsLoading] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [reservingDeal, setReservingDeal] = useState<DealWithVenue | null>(null);
 
   // Filter state — day defaults to today
   const [dealTypeFilter, setDealTypeFilter] = useState<DealType | undefined>(undefined);
@@ -311,6 +323,7 @@ export default function Home() {
                   deal={deal}
                   isLoggedIn={!!user}
                   onToggleFavorite={handleToggleFavorite}
+                  onReserve={setReservingDeal}
                 />
               </div>
             ))}
@@ -419,11 +432,19 @@ export default function Home() {
                 deal={deal}
                 isLoggedIn={!!user}
                 onToggleFavorite={handleToggleFavorite}
+                onReserve={setReservingDeal}
               />
             ))}
           </div>
         )}
       </section>
+
+      {reservingDeal && (
+        <ReservationModal
+          deal={reservingDeal}
+          onClose={() => setReservingDeal(null)}
+        />
+      )}
     </div>
   );
 }

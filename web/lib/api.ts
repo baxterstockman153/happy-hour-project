@@ -1,15 +1,19 @@
 import type {
   AuthTokens,
   CreateDealInput,
+  CreateReservationInput,
   CreateVenueInput,
   DealType,
   DealWithVenue,
   HappyHourDeal,
   PaginatedResponse,
+  Reservation,
   Venue,
   VenueCategory,
   VenueWithDistance,
 } from '@api-types';
+
+export type { Reservation, CreateReservationInput };
 
 // ── Owner Profile ──
 
@@ -184,6 +188,24 @@ export function removeFavorite(venueId: string): Promise<void> {
   return apiFetch(`/users/me/favorites/${venueId}`, {
     method: 'DELETE',
   });
+}
+
+// ── Reservations ──
+
+export function createReservation(input: CreateReservationInput): Promise<Reservation> {
+  return apiFetch('/reservations', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getUserReservations(): Promise<Reservation[]> {
+  const res = await apiFetch<{ data: Reservation[] }>('/reservations/me');
+  return res.data;
+}
+
+export function cancelReservation(id: string): Promise<Reservation> {
+  return apiFetch(`/reservations/${id}`, { method: 'DELETE' });
 }
 
 // ── Admin ──

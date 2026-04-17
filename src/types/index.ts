@@ -131,6 +131,37 @@ export interface CreateVenueOwnerInput {
   phone?: string;
 }
 
+// ── Reservation ──
+
+export interface Reservation {
+  id: string;
+  venue_id: string;
+  deal_id: string | null;
+  user_id: string | null;
+  name: string;
+  email: string;
+  phone: string | null;
+  party_size: number;
+  reservation_date: string; // "YYYY-MM-DD"
+  reservation_time: string; // "HH:MM"
+  special_requests: string | null;
+  status: 'confirmed' | 'cancelled';
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateReservationInput {
+  venue_id: string;
+  deal_id?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  party_size: number;
+  reservation_date: string; // "YYYY-MM-DD"
+  reservation_time: string; // "HH:MM"
+  special_requests?: string;
+}
+
 // ── Auth ──
 
 export interface JwtPayload {
